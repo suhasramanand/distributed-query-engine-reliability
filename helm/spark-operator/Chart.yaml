@@ -1,0 +1,18 @@
+apiVersion: v2
+name: spark-operator
+description: A Helm chart for Spark operator on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "1.2.3"
+keywords:
+  - spark
+  - kubernetes
+  - operator
+  - big-data
+  - analytics
+home: https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
+sources:
+  - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
+maintainers:
+  - name: Data Team
+    email: data-team@company.com

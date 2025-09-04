@@ -1,0 +1,67 @@
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "presto.fullname" . }}-worker-hpa
+  labels:
+    {{- include "presto.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ include "presto.fullname" . }}-worker
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetCustomMetrics }}
+    {{- range .Values.autoscaling.targetCustomMetrics }}
+    - type: Object
+      object:
+        metric:
+          name: {{ .name }}
+        describedObject:
+          apiVersion: {{ .apiVersion }}
+          kind: {{ .kind }}
+          name: {{ .name }}
+        target:
+          type: {{ .targetType }}
+          {{- if eq .targetType "Value" }}
+          value: {{ .value }}
+          {{- else if eq .targetType "AverageValue" }}
+          averageValue: {{ .averageValue }}
+          {{- end }}
+    {{- end }}
+    {{- end }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+{{- end }}

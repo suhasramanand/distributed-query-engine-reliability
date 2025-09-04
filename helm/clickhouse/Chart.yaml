@@ -1,0 +1,18 @@
+apiVersion: v2
+name: clickhouse
+description: A Helm chart for ClickHouse distributed SQL database on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "23.8"
+keywords:
+  - clickhouse
+  - sql
+  - database
+  - analytics
+  - olap
+home: https://clickhouse.com
+sources:
+  - https://github.com/ClickHouse/ClickHouse
+maintainers:
+  - name: Data Team
+    email: data-team@company.com

@@ -1,0 +1,18 @@
+apiVersion: v2
+name: presto
+description: A Helm chart for Presto/Trino distributed SQL query engine on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "424"
+keywords:
+  - presto
+  - trino
+  - sql
+  - query-engine
+  - analytics
+home: https://trino.io
+sources:
+  - https://github.com/trinodb/trino
+maintainers:
+  - name: Data Team
+    email: data-team@company.com

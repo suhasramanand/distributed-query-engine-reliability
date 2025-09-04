@@ -1,0 +1,200 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "presto.fullname" . }}-coordinator
+  labels:
+    {{- include "presto.labels" . | nindent 4 }}
+    component: coordinator
+spec:
+  replicas: {{ .Values.replicaCount.coordinator }}
+  selector:
+    matchLabels:
+      {{- include "presto.selectorLabels" . | nindent 6 }}
+      component: coordinator
+  template:
+    metadata:
+      labels:
+        {{- include "presto.selectorLabels" . | nindent 8 }}
+        component: coordinator
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "presto.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-coordinator
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.coordinator.port }}
+              protocol: TCP
+            - name: jmx
+              containerPort: 9999
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources.coordinator | nindent 12 }}
+          env:
+            - name: NODE_ENV
+              value: "coordinator"
+            - name: DISCOVERY_URI
+              value: "http://{{ include "presto.fullname" . }}-coordinator:{{ .Values.service.coordinator.port }}"
+            - name: JAVA_OPTS
+              value: "-Xmx{{ .Values.resources.coordinator.limits.memory | replace "Gi" "g" | replace "Mi" "m" }} -Xms{{ .Values.resources.coordinator.requests.memory | replace "Gi" "g" | replace "Mi" "m" }}"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino
+            - name: data
+              mountPath: /data/presto
+            - name: logs
+              mountPath: /var/log/trino
+          {{- if .Values.monitoring.jmx.enabled }}
+          - name: jmx
+            mountPath: /opt/trino/jmx
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "presto.fullname" . }}-config
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "presto.fullname" . }}-coordinator-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: logs
+          emptyDir: {}
+        {{- if .Values.monitoring.jmx.enabled }}
+        - name: jmx
+          configMap:
+            name: {{ include "presto.fullname" . }}-jmx-config
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "presto.fullname" . }}-worker
+  labels:
+    {{- include "presto.labels" . | nindent 4 }}
+    component: worker
+spec:
+  serviceName: {{ include "presto.fullname" . }}-worker
+  replicas: {{ .Values.replicaCount.worker }}
+  selector:
+    matchLabels:
+      {{- include "presto.selectorLabels" . | nindent 6 }}
+      component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "presto.selectorLabels" . | nindent 8 }}
+        component: worker
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "presto.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-worker
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.worker.port }}
+              protocol: TCP
+            - name: jmx
+              containerPort: 9999
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources.worker | nindent 12 }}
+          env:
+            - name: NODE_ENV
+              value: "worker"
+            - name: DISCOVERY_URI
+              value: "http://{{ include "presto.fullname" . }}-coordinator:{{ .Values.service.coordinator.port }}"
+            - name: JAVA_OPTS
+              value: "-Xmx{{ .Values.resources.worker.limits.memory | replace "Gi" "g" | replace "Mi" "m" }} -Xms{{ .Values.resources.worker.requests.memory | replace "Gi" "g" | replace "Mi" "m" }}"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino
+            - name: data
+              mountPath: /data/presto
+            - name: logs
+              mountPath: /var/log/trino
+          {{- if .Values.monitoring.jmx.enabled }}
+          - name: jmx
+            mountPath: /opt/trino/jmx
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "presto.fullname" . }}-config
+        - name: logs
+          emptyDir: {}
+        {{- if .Values.monitoring.jmx.enabled }}
+        - name: jmx
+          configMap:
+            name: {{ include "presto.fullname" . }}-jmx-config
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

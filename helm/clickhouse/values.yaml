@@ -1,0 +1,313 @@
+# Default values for ClickHouse Helm chart
+replicaCount:
+  shard: 3
+  replica: 2
+
+image:
+  repository: clickhouse/clickhouse-server
+  tag: "23.8"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  http:
+    port: 8123
+    targetPort: 8123
+  tcp:
+    port: 9000
+    targetPort: 9000
+  interserver:
+    port: 9009
+    targetPort: 9009
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: clickhouse.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 4000m
+    memory: 8Gi
+  requests:
+    cpu: 2000m
+    memory: 4Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 12
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector:
+  NodeGroup: analytics
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "analytics"
+    effect: "NoSchedule"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - clickhouse
+        topologyKey: kubernetes.io/hostname
+
+config:
+  # ClickHouse server configuration
+  clickhouse:
+    # TCP port for client connections
+    tcp_port: 9000
+    # HTTP port for client connections
+    http_port: 8123
+    # Port for interserver communication
+    interserver_http_port: 9009
+    
+    # Logging configuration
+    logger:
+      level: information
+      log: /var/log/clickhouse-server/clickhouse-server.log
+      errorlog: /var/log/clickhouse-server/clickhouse-server.err.log
+      size: 1000M
+      count: 10
+    
+    # User directories
+    user_directories:
+      users_xml:
+        path: /etc/clickhouse-server/users.xml
+    
+    # Default profile
+    default_profile: default
+    default_database: default
+    
+    # Memory settings
+    max_memory_usage: 6GB
+    max_memory_usage_for_user: 5GB
+    max_memory_usage_for_all_queries: 7GB
+    
+    # Query settings
+    max_concurrent_queries: 100
+    max_concurrent_insert_queries: 100
+    max_threads: 8
+    max_insert_threads: 8
+    
+    # Merge tree settings
+    merge_tree:
+      parts_to_delay_insert: 150
+      parts_to_throw_insert: 300
+      max_bytes_to_merge_at_max_space_in_pool: 100GB
+      max_bytes_to_merge_at_min_space_in_pool: 10GB
+    
+    # Background pool settings
+    background_pool_size: 16
+    background_schedule_pool_size: 16
+    
+    # Compression settings
+    compression:
+      method: lz4
+    
+    # Network settings
+    listen_host: 0.0.0.0
+    tcp_port: 9000
+    http_port: 8123
+    interserver_http_port: 9009
+    
+    # Security settings
+    disable_merges: false
+    enable_optimize_predicate_expression: true
+    enable_optimize_aggregation_in_order: true
+    
+    # Distributed settings
+    distributed_directory_monitor_sleep_time_ms: 100
+    distributed_directory_monitor_max_sleep_time_ms: 30000
+    distributed_directory_monitor_batch_inserts: true
+    
+    # Cache settings
+    mark_cache_size: 5368709120
+    uncompressed_cache_size: 8589934592
+    
+    # Temporary files
+    tmp_path: /var/lib/clickhouse/tmp/
+    path: /var/lib/clickhouse/
+    
+    # User settings
+    users_config: /etc/clickhouse-server/users.xml
+    include_from: /etc/clickhouse-server/config.d/*.xml
+
+# Cluster configuration
+cluster:
+  name: clickhouse-cluster
+  shards:
+    - name: shard-1
+      replicas:
+        - name: replica-1
+          host: clickhouse-shard-1-replica-1
+          port: 9000
+        - name: replica-2
+          host: clickhouse-shard-1-replica-2
+          port: 9000
+    - name: shard-2
+      replicas:
+        - name: replica-1
+          host: clickhouse-shard-2-replica-1
+          port: 9000
+        - name: replica-2
+          host: clickhouse-shard-2-replica-2
+          port: 9000
+    - name: shard-3
+      replicas:
+        - name: replica-1
+          host: clickhouse-shard-3-replica-1
+          port: 9000
+        - name: replica-2
+          host: clickhouse-shard-3-replica-2
+          port: 9000
+
+# Storage configuration
+storage:
+  data:
+    storageClass: "gp2"
+    size: 500Gi
+  logs:
+    storageClass: "gp2"
+    size: 50Gi
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    port: 9116
+    path: /metrics
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+
+# Logging configuration
+logging:
+  level: information
+  console: true
+  file: true
+
+# Performance optimization settings
+performance:
+  # Memory settings
+  memory:
+    max_memory_usage: 6GB
+    max_memory_usage_for_user: 5GB
+    max_memory_usage_for_all_queries: 7GB
+  
+  # Query settings
+  query:
+    max_concurrent_queries: 100
+    max_concurrent_insert_queries: 100
+    max_threads: 8
+    max_insert_threads: 8
+  
+  # Merge settings
+  merge:
+    parts_to_delay_insert: 150
+    parts_to_throw_insert: 300
+    max_bytes_to_merge_at_max_space_in_pool: 100GB
+    max_bytes_to_merge_at_min_space_in_pool: 10GB
+  
+  # Background pool settings
+  background:
+    pool_size: 16
+    schedule_pool_size: 16
+  
+  # Cache settings
+  cache:
+    mark_cache_size: 5GB
+    uncompressed_cache_size: 8GB
+
+# Security settings
+security:
+  # User configuration
+  users:
+    default:
+      password: ""
+      profile: default
+      quota: default
+      networks:
+        ip: ::/0
+    admin:
+      password: "admin123"
+      profile: default
+      quota: default
+      networks:
+        ip: ::/0
+      access_management: 1
+  
+  # Profiles configuration
+  profiles:
+    default:
+      max_memory_usage: 10000000000
+      use_uncompressed_cache: 0
+      load_balancing: random
+  
+  # Quotas configuration
+  quotas:
+    default:
+      interval:
+        duration: 3600
+        queries: 0
+        errors: 0
+        result_rows: 0
+        read_rows: 0
+        execution_time: 0
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /ping
+    port: 8123
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ping
+    port: 8123
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2

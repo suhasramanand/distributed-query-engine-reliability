@@ -1,0 +1,254 @@
+# Default values for Spark operator Helm chart
+replicaCount: 1
+
+image:
+  repository: gcr.io/spark-operator/spark-operator
+  tag: "v1.2.3"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: spark-operator.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Spark operator configuration
+operator:
+  # Enable webhook
+  webhook:
+    enabled: true
+    port: 8080
+  
+  # Enable metrics
+  metrics:
+    enabled: true
+    port: 8080
+    path: /metrics
+  
+  # Spark application configuration
+  sparkApplication:
+    # Default Spark image
+    defaultSparkImage: "apache/spark:3.4.1"
+    
+    # Default Spark version
+    defaultSparkVersion: "3.4.1"
+    
+    # Default Java image
+    defaultJavaImage: "openjdk:11-jre-slim"
+    
+    # Default Python image
+    defaultPythonImage: "python:3.9-slim"
+    
+    # Default R image
+    defaultRImage: "rocker/r-base:latest"
+    
+    # Default Scala image
+    defaultScalaImage: "scala:2.12"
+  
+  # Batch scheduler configuration
+  batchScheduler:
+    # Enable batch scheduler
+    enabled: true
+    
+    # Batch scheduler image
+    image: "gcr.io/spark-operator/spark-batch-scheduler:latest"
+    
+    # Batch scheduler configuration
+    config:
+      # Maximum number of Spark applications to run concurrently
+      maxConcurrency: 100
+      
+      # Maximum number of Spark applications to queue
+      maxQueueSize: 1000
+      
+      # Timeout for Spark application submission
+      submissionTimeout: 300s
+      
+      # Timeout for Spark application execution
+      executionTimeout: 3600s
+  
+  # Spark application monitoring
+  monitoring:
+    # Enable Prometheus metrics
+    prometheus:
+      enabled: true
+      port: 8080
+      path: /metrics
+    
+    # Enable Grafana dashboard
+    grafana:
+      enabled: true
+      dashboard:
+        enabled: true
+    
+    # Enable logging
+    logging:
+      enabled: true
+      level: INFO
+  
+  # Spark application security
+  security:
+    # Enable RBAC
+    rbac:
+      enabled: true
+    
+    # Enable service account creation
+    serviceAccount:
+      enabled: true
+    
+    # Enable pod security policies
+    podSecurityPolicy:
+      enabled: false
+    
+    # Enable network policies
+    networkPolicy:
+      enabled: false
+  
+  # Spark application storage
+  storage:
+    # Enable persistent volumes
+    persistentVolume:
+      enabled: true
+    
+    # Default storage class
+    storageClass: "gp2"
+    
+    # Default volume size
+    volumeSize: "10Gi"
+  
+  # Spark application networking
+  networking:
+    # Enable service mesh
+    serviceMesh:
+      enabled: false
+    
+    # Enable ingress
+    ingress:
+      enabled: false
+    
+    # Enable load balancer
+    loadBalancer:
+      enabled: false
+
+# Spark application templates
+templates:
+  # Default Spark application template
+  default:
+    apiVersion: "sparkoperator.k8s.io/v1beta2"
+    kind: SparkApplication
+    metadata:
+      name: "{{ .Values.name }}"
+      namespace: "{{ .Values.namespace }}"
+    spec:
+      type: Java
+      mode: cluster
+      image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+      imagePullPolicy: Always
+      mainClass: "{{ .Values.mainClass }}"
+      mainApplicationFile: "{{ .Values.mainApplicationFile }}"
+      sparkVersion: "{{ .Values.sparkVersion }}"
+      restartPolicy:
+        type: OnFailure
+        onFailureRetries: 3
+        onFailureRetryInterval: 10
+        onSubmissionFailureRetries: 5
+        onSubmissionFailureRetryInterval: 20
+      driver:
+        cores: 1
+        coreLimit: "1200m"
+        memory: "512m"
+        memoryOverhead: "512m"
+        serviceAccount: "{{ .Values.serviceAccount.name }}"
+        labels:
+          version: "{{ .Values.version }}"
+        annotations:
+          {{- toYaml .Values.driver.annotations | nindent 10 }}
+        volumeMounts:
+          - name: "{{ .Values.name }}-config-volume"
+            mountPath: "/opt/spark/conf"
+        env:
+          - name: SPARK_DRIVER_MEMORY
+            value: "512m"
+          - name: SPARK_DRIVER_MAXRESULTSIZE
+            value: "1g"
+      executor:
+        cores: 1
+        instances: 1
+        memory: "512m"
+        memoryOverhead: "512m"
+        labels:
+          version: "{{ .Values.version }}"
+        annotations:
+          {{- toYaml .Values.executor.annotations | nindent 10 }}
+        volumeMounts:
+          - name: "{{ .Values.name }}-config-volume"
+            mountPath: "/opt/spark/conf"
+        env:
+          - name: SPARK_EXECUTOR_MEMORY
+            value: "512m"
+      volumes:
+        - name: "{{ .Values.name }}-config-volume"
+          configMap:
+            name: "{{ .Values.name }}-config"
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

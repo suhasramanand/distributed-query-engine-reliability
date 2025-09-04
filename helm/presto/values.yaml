@@ -1,0 +1,246 @@
+# Default values for Presto/Trino Helm chart
+replicaCount:
+  coordinator: 1
+  worker: 3
+
+image:
+  repository: trinodb/trino
+  tag: "424"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  coordinator:
+    port: 8080
+    targetPort: 8080
+  worker:
+    port: 8080
+    targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: presto.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  coordinator:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+  worker:
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+    requests:
+      cpu: 2000m
+      memory: 4Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector:
+  NodeGroup: analytics
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "analytics"
+    effect: "NoSchedule"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - presto
+        topologyKey: kubernetes.io/hostname
+
+config:
+  coordinator:
+    node:
+      data-dir: /data/presto
+      environment: production
+      location: us-west-2
+    discovery:
+      uri: http://presto-coordinator:8080
+    http-server:
+      http.port: 8080
+    internal-communication:
+      shared-secret: "presto-internal-secret"
+    memory:
+      heap-headroom-per-node: 1GB
+    query:
+      max-memory: 4GB
+      max-memory-per-node: 2GB
+      max-total-memory: 8GB
+      max-total-memory-per-node: 4GB
+    scheduler:
+      include-coordinator: false
+    task:
+      max-worker-threads: 16
+    exchange:
+      compression-enabled: true
+    http-server:
+      authentication:
+        type: PASSWORD
+      authorization:
+        type: ALLOW_ALL
+    security:
+      internal-communication:
+        shared-secret: "presto-internal-secret"
+
+  worker:
+    node:
+      data-dir: /data/presto
+      environment: production
+      location: us-west-2
+    discovery:
+      uri: http://presto-coordinator:8080
+    http-server:
+      http.port: 8080
+    internal-communication:
+      shared-secret: "presto-internal-secret"
+    memory:
+      heap-headroom-per-node: 2GB
+    query:
+      max-memory: 8GB
+      max-memory-per-node: 4GB
+      max-total-memory: 16GB
+      max-total-memory-per-node: 8GB
+    task:
+      max-worker-threads: 32
+    exchange:
+      compression-enabled: true
+
+catalogs:
+  hive:
+    connector-name: hive
+    hive:
+      metastore:
+        uri: thrift://hive-metastore:9083
+      s3:
+        endpoint: http://minio:9000
+        access-key: minioadmin
+        secret-key: minioadmin
+        path-style-access-enabled: true
+  memory:
+    connector-name: memory
+    memory:
+      max-data-per-node: 512MB
+
+persistence:
+  enabled: true
+  storageClass: "gp2"
+  size: 100Gi
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    port: 8080
+    path: /v1/metrics
+  jmx:
+    enabled: true
+    port: 9999
+
+logging:
+  level: INFO
+  loggers:
+    io.trino: INFO
+    io.airlift: INFO
+
+# Custom configuration for performance optimization
+performance:
+  # Query optimization settings
+  query:
+    max-concurrent-queries: 100
+    max-queued-queries: 200
+    max-queued-queries-per-user: 50
+  
+  # Memory management
+  memory:
+    max-memory-per-node: 8GB
+    heap-headroom-per-node: 2GB
+  
+  # Network settings
+  network:
+    max-http-response-size: 100MB
+    http-server-threads: 200
+  
+  # Task settings
+  task:
+    max-worker-threads: 32
+    min-drivers: 1
+    max-drivers-per-task: 1000
+  
+  # Exchange settings
+  exchange:
+    compression-enabled: true
+    buffer-size: 32MB
+    concurrent-request-multiplier: 2
+
+# Security settings
+security:
+  internal-communication:
+    shared-secret: "presto-internal-secret"
+  authentication:
+    type: PASSWORD
+  authorization:
+    type: ALLOW_ALL
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /v1/info
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /v1/info
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
