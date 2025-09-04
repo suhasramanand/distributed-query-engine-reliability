@@ -1,0 +1,205 @@
+name: Helm Chart Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'helm/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'helm/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+        - dev
+        - prod
+
+env:
+  AWS_REGION: us-west-2
+  HELM_VERSION: "v3.12.0"
+
+jobs:
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: ${{ env.HELM_VERSION }}
+        
+    - name: Lint Presto Chart
+      working-directory: ./helm/presto
+      run: helm lint .
+      
+    - name: Lint ClickHouse Chart
+      working-directory: ./helm/clickhouse
+      run: helm lint .
+      
+    - name: Lint Spark Operator Chart
+      working-directory: ./helm/spark-operator
+      run: helm lint .
+      
+    - name: Lint Monitoring Chart
+      working-directory: ./helm/monitoring
+      run: helm lint .
+      
+  helm-deploy:
+    name: Helm Deploy
+    runs-on: ubuntu-latest
+    needs: helm-lint
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: ${{ env.HELM_VERSION }}
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Configure kubectl
+      run: |
+        aws eks update-kubeconfig --name distributed-query-engine-prod --region ${{ env.AWS_REGION }}
+        
+    - name: Create namespace
+      run: |
+        kubectl create namespace query-engines --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+        
+    - name: Deploy Monitoring Stack
+      working-directory: ./helm/monitoring
+      run: |
+        helm upgrade --install monitoring . \
+          --namespace monitoring \
+          --create-namespace \
+          --wait \
+          --timeout 10m \
+          --set prometheus.enabled=true \
+          --set grafana.enabled=true \
+          --set alertmanager.enabled=true
+          
+    - name: Deploy Spark Operator
+      working-directory: ./helm/spark-operator
+      run: |
+        helm upgrade --install spark-operator . \
+          --namespace query-engines \
+          --create-namespace \
+          --wait \
+          --timeout 10m
+          
+    - name: Deploy ClickHouse
+      working-directory: ./helm/clickhouse
+      run: |
+        helm upgrade --install clickhouse . \
+          --namespace query-engines \
+          --create-namespace \
+          --wait \
+          --timeout 15m \
+          --set replicaCount.shard=3 \
+          --set replicaCount.replica=2
+          
+    - name: Deploy Presto
+      working-directory: ./helm/presto
+      run: |
+        helm upgrade --install presto . \
+          --namespace query-engines \
+          --create-namespace \
+          --wait \
+          --timeout 15m \
+          --set replicaCount.coordinator=1 \
+          --set replicaCount.worker=3
+          
+    - name: Verify Deployments
+      run: |
+        kubectl get pods --all-namespaces
+        kubectl get services --all-namespaces
+        kubectl get deployments --all-namespaces
+        
+    - name: Run Health Checks
+      run: |
+        # Wait for all pods to be ready
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=presto -n query-engines --timeout=300s
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=clickhouse -n query-engines --timeout=300s
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=spark-operator -n query-engines --timeout=300s
+        
+        # Check service endpoints
+        kubectl get endpoints -n query-engines
+        kubectl get endpoints -n monitoring
+        
+    - name: Test Service Connectivity
+      run: |
+        # Test Presto coordinator
+        kubectl run test-presto --image=curlimages/curl -n query-engines --rm -i --restart=Never -- \
+          curl -f http://presto-coordinator:8080/v1/info || echo "Presto coordinator not ready"
+          
+        # Test ClickHouse
+        kubectl run test-clickhouse --image=curlimages/curl -n query-engines --rm -i --restart=Never -- \
+          curl -f http://clickhouse:8123/ping || echo "ClickHouse not ready"
+          
+        # Test Prometheus
+        kubectl run test-prometheus --image=curlimages/curl -n monitoring --rm -i --restart=Never -- \
+          curl -f http://prometheus:9090/-/healthy || echo "Prometheus not ready"
+          
+        # Test Grafana
+        kubectl run test-grafana --image=curlimages/curl -n monitoring --rm -i --restart=Never -- \
+          curl -f http://grafana:3000/api/health || echo "Grafana not ready"
+          
+  helm-rollback:
+    name: Helm Rollback (Manual)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.rollback == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: ${{ env.HELM_VERSION }}
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Configure kubectl
+      run: |
+        aws eks update-kubeconfig --name distributed-query-engine-prod --region ${{ env.AWS_REGION }}
+        
+    - name: Rollback Presto
+      run: |
+        helm rollback presto -n query-engines
+        
+    - name: Rollback ClickHouse
+      run: |
+        helm rollback clickhouse -n query-engines
+        
+    - name: Rollback Spark Operator
+      run: |
+        helm rollback spark-operator -n query-engines
+        
+    - name: Rollback Monitoring
+      run: |
+        helm rollback monitoring -n monitoring

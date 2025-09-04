@@ -1,0 +1,208 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: presto-pod-failure
+  namespace: query-engines
+spec:
+  action: pod-failure
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: presto
+  duration: '30s'
+  scheduler:
+    cron: '@every 5m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: clickhouse-pod-failure
+  namespace: query-engines
+spec:
+  action: pod-failure
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: clickhouse
+  duration: '30s'
+  scheduler:
+    cron: '@every 5m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-latency
+  namespace: query-engines
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: presto
+  delay:
+    latency: '100ms'
+    correlation: '100'
+    jitter: '0ms'
+  duration: '60s'
+  scheduler:
+    cron: '@every 10m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-packet-loss
+  namespace: query-engines
+spec:
+  action: loss
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: clickhouse
+  loss:
+    loss: '10'
+    correlation: '25'
+  duration: '30s'
+  scheduler:
+    cron: '@every 15m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress
+  namespace: query-engines
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: presto
+  stressors:
+    cpu:
+      workers: 2
+      load: 80
+  duration: '60s'
+  scheduler:
+    cron: '@every 20m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: memory-stress
+  namespace: query-engines
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: clickhouse
+  stressors:
+    memory:
+      workers: 1
+      size: '1GB'
+  duration: '45s'
+  scheduler:
+    cron: '@every 25m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: node-failure-simulation
+  namespace: query-engines
+spec:
+  action: pod-failure
+  mode: all
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      NodeGroup: analytics
+  duration: '60s'
+  scheduler:
+    cron: '@every 30m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: IOChaos
+metadata:
+  name: disk-io-latency
+  namespace: query-engines
+spec:
+  action: latency
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: presto
+  delay: '50ms'
+  percent: 50
+  duration: '30s'
+  scheduler:
+    cron: '@every 35m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: KernelChaos
+metadata:
+  name: kernel-panic-simulation
+  namespace: query-engines
+spec:
+  action: fail-kern
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: clickhouse
+  failKernRequest:
+    callchain:
+      - funcname: do_exit
+    failtype: 0
+  duration: '10s'
+  scheduler:
+    cron: '@every 40m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: dns-failure
+  namespace: query-engines
+spec:
+  action: error
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: presto
+  patterns:
+    - '*.presto-coordinator'
+  duration: '20s'
+  scheduler:
+    cron: '@every 45m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: TimeChaos
+metadata:
+  name: time-skew
+  namespace: query-engines
+spec:
+  action: time-skew
+  mode: one
+  selector:
+    namespaces:
+      - query-engines
+    labelSelectors:
+      app.kubernetes.io/name: clickhouse
+  timeOffset: '5s'
+  duration: '30s'
+  scheduler:
+    cron: '@every 50m'

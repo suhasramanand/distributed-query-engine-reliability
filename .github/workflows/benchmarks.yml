@@ -1,0 +1,364 @@
+name: Automated Benchmarking
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'benchmarks/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'benchmarks/**'
+  schedule:
+    # Run benchmarks daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Type of benchmark to run'
+        required: true
+        default: 'tpch'
+        type: choice
+        options:
+        - tpch
+        - tpcds
+        - custom
+      scale_factor:
+        description: 'Scale factor for data generation'
+        required: true
+        default: '10'
+        type: string
+
+env:
+  AWS_REGION: us-west-2
+  PYTHON_VERSION: "3.9"
+
+jobs:
+  setup-environment:
+    name: Setup Benchmark Environment
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        pip install -r benchmarks/requirements.txt
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Configure kubectl
+      run: |
+        aws eks update-kubeconfig --name distributed-query-engine-prod --region ${{ env.AWS_REGION }}
+        
+    - name: Check cluster status
+      run: |
+        kubectl get nodes
+        kubectl get pods --all-namespaces
+        
+  generate-test-data:
+    name: Generate Test Data
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        pip install -r benchmarks/requirements.txt
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Generate TPC-H data
+      working-directory: ./benchmarks/data-generator
+      run: |
+        python generate_tpch_data.py \
+          --scale-factor ${{ github.event.inputs.scale_factor || '10' }} \
+          --output-s3-bucket distributed-query-engine-prod-data \
+          --output-s3-prefix tpch-data
+          
+    - name: Generate TPC-DS data
+      working-directory: ./benchmarks/data-generator
+      run: |
+        python generate_tpcds_data.py \
+          --scale-factor ${{ github.event.inputs.scale_factor || '10' }} \
+          --output-s3-bucket distributed-query-engine-prod-data \
+          --output-s3-prefix tpcds-data
+          
+  run-presto-benchmarks:
+    name: Run Presto Benchmarks
+    runs-on: ubuntu-latest
+    needs: [setup-environment, generate-test-data]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        pip install -r benchmarks/requirements.txt
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Configure kubectl
+      run: |
+        aws eks update-kubeconfig --name distributed-query-engine-prod --region ${{ env.AWS_REGION }}
+        
+    - name: Wait for Presto to be ready
+      run: |
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=presto -n query-engines --timeout=600s
+        
+    - name: Run TPC-H benchmarks on Presto
+      working-directory: ./benchmarks/tpch
+      run: |
+        python run_presto_benchmarks.py \
+          --presto-host presto-coordinator \
+          --presto-port 8080 \
+          --catalog hive \
+          --schema tpch \
+          --scale-factor ${{ github.event.inputs.scale_factor || '10' }} \
+          --output-file presto_tpch_results.json
+          
+    - name: Run TPC-DS benchmarks on Presto
+      working-directory: ./benchmarks/tpcds
+      run: |
+        python run_presto_benchmarks.py \
+          --presto-host presto-coordinator \
+          --presto-port 8080 \
+          --catalog hive \
+          --schema tpcds \
+          --scale-factor ${{ github.event.inputs.scale_factor || '10' }} \
+          --output-file presto_tpcds_results.json
+          
+    - name: Upload Presto results
+      uses: actions/upload-artifact@v3
+      with:
+        name: presto-benchmark-results
+        path: |
+          benchmarks/tpch/presto_tpch_results.json
+          benchmarks/tpcds/presto_tpcds_results.json
+        
+  run-clickhouse-benchmarks:
+    name: Run ClickHouse Benchmarks
+    runs-on: ubuntu-latest
+    needs: [setup-environment, generate-test-data]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        pip install -r benchmarks/requirements.txt
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Configure kubectl
+      run: |
+        aws eks update-kubeconfig --name distributed-query-engine-prod --region ${{ env.AWS_REGION }}
+        
+    - name: Wait for ClickHouse to be ready
+      run: |
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=clickhouse -n query-engines --timeout=600s
+        
+    - name: Run TPC-H benchmarks on ClickHouse
+      working-directory: ./benchmarks/tpch
+      run: |
+        python run_clickhouse_benchmarks.py \
+          --clickhouse-host clickhouse \
+          --clickhouse-port 8123 \
+          --database tpch \
+          --scale-factor ${{ github.event.inputs.scale_factor || '10' }} \
+          --output-file clickhouse_tpch_results.json
+          
+    - name: Run TPC-DS benchmarks on ClickHouse
+      working-directory: ./benchmarks/tpcds
+      run: |
+        python run_clickhouse_benchmarks.py \
+          --clickhouse-host clickhouse \
+          --clickhouse-port 8123 \
+          --database tpcds \
+          --scale-factor ${{ github.event.inputs.scale_factor || '10' }} \
+          --output-file clickhouse_tpcds_results.json
+          
+    - name: Upload ClickHouse results
+      uses: actions/upload-artifact@v3
+      with:
+        name: clickhouse-benchmark-results
+        path: |
+          benchmarks/tpch/clickhouse_tpch_results.json
+          benchmarks/tpcds/clickhouse_tpcds_results.json
+        
+  run-spark-benchmarks:
+    name: Run Spark Benchmarks
+    runs-on: ubuntu-latest
+    needs: [setup-environment, generate-test-data]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        pip install -r benchmarks/requirements.txt
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Configure kubectl
+      run: |
+        aws eks update-kubeconfig --name distributed-query-engine-prod --region ${{ env.AWS_REGION }}
+        
+    - name: Wait for Spark operator to be ready
+      run: |
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=spark-operator -n query-engines --timeout=600s
+        
+    - name: Run Spark benchmarks
+      working-directory: ./benchmarks
+      run: |
+        python run_spark_benchmarks.py \
+          --namespace query-engines \
+          --scale-factor ${{ github.event.inputs.scale_factor || '10' }} \
+          --output-file spark_benchmark_results.json
+          
+    - name: Upload Spark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: spark-benchmark-results
+        path: benchmarks/spark_benchmark_results.json
+        
+  analyze-results:
+    name: Analyze Benchmark Results
+    runs-on: ubuntu-latest
+    needs: [run-presto-benchmarks, run-clickhouse-benchmarks, run-spark-benchmarks]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        pip install -r benchmarks/requirements.txt
+        
+    - name: Download all results
+      uses: actions/download-artifact@v3
+      with:
+        name: presto-benchmark-results
+        path: results/presto/
+        
+    - name: Download ClickHouse results
+      uses: actions/download-artifact@v3
+      with:
+        name: clickhouse-benchmark-results
+        path: results/clickhouse/
+        
+    - name: Download Spark results
+      uses: actions/download-artifact@v3
+      with:
+        name: spark-benchmark-results
+        path: results/spark/
+        
+    - name: Generate benchmark report
+      working-directory: ./benchmarks
+      run: |
+        python generate_report.py \
+          --presto-results results/presto/ \
+          --clickhouse-results results/clickhouse/ \
+          --spark-results results/spark/ \
+          --output-file benchmark_report.html \
+          --output-json benchmark_report.json
+          
+    - name: Upload benchmark report
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-report
+        path: |
+          benchmarks/benchmark_report.html
+          benchmarks/benchmark_report.json
+        
+    - name: Comment PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('benchmarks/benchmark_report.json', 'utf8'));
+          
+          const comment = `## Benchmark Results
+          
+          ### Performance Summary
+          - **Presto/Trino**: ${report.presto.summary}
+          - **ClickHouse**: ${report.clickhouse.summary}
+          - **Spark**: ${report.spark.summary}
+          
+          ### Key Metrics
+          - Average Query Latency: ${report.metrics.avg_latency}ms
+          - Throughput: ${report.metrics.throughput} queries/sec
+          - Error Rate: ${report.metrics.error_rate}%
+          
+          [Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
