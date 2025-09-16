@@ -10,7 +10,7 @@ import statistics
 from datetime import datetime
 from typing import Dict, List, Any
 import requests
-from presto import PrestoConnection
+from prestodb.dbapi import Connection as PrestoConnection
 import pandas as pd
 from tqdm import tqdm
 import logging

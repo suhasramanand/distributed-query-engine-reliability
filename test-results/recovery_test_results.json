@@ -1,0 +1,25 @@
+{
+  "pod_recovery": {
+    "presto-coordinator": {
+      "deployment": "presto-coordinator",
+      "recovery_time": 0.0,
+      "pod_restart_count": 0,
+      "status": "error",
+      "error": "'CoreV1Api' object has no attribute 'read_namespaced_deployment'"
+    },
+    "presto-worker": {
+      "deployment": "presto-worker",
+      "recovery_time": 0.0,
+      "pod_restart_count": 0,
+      "status": "error",
+      "error": "'CoreV1Api' object has no attribute 'read_namespaced_deployment'"
+    },
+    "clickhouse": {
+      "deployment": "clickhouse",
+      "recovery_time": 0.0,
+      "pod_restart_count": 0,
+      "status": "error",
+      "error": "'CoreV1Api' object has no attribute 'read_namespaced_deployment'"
+    }
+  }
+}

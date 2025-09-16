@@ -2,37 +2,37 @@
 
 A production-grade implementation for deploying and benchmarking distributed SQL query engines (Presto/Trino, ClickHouse, Spark) on Kubernetes with comprehensive fault tolerance, monitoring, and performance optimization.
 
-## 🎯 Objectives
+##      Objectives
 
 - Deploy and benchmark distributed SQL query engines on Kubernetes clusters
 - Simulate analytical workloads of 10TB+ scale for benchmarking query performance
 - Ensure fault-tolerant, reproducible deployments with Infrastructure-as-Code and CI/CD
 - Optimize for scalability, latency reduction, and reliability under failure conditions
 
-## 🏗️ Architecture
+##    �    Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Kubernetes Cluster                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
-│  │   Presto    │  │  ClickHouse │  │    Spark    │            │
-│  │   Cluster   │  │   Cluster   │  │   Operator  │            │
-│  └─────────────┘  └─────────────┘  └─────────────┘            │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
-│  │    Kafka    │  │   MinIO/S3  │  │ Monitoring  │            │
-│  │  (Ingestion)│  │ (Storage)   │  │   Stack     │            │
-│  └─────────────┘  └─────────────┘  └─────────────┘            │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
-│  │  Prometheus │  │   Grafana   │  │   ELK/EFK   │            │
-│  │ (Metrics)   │  │ (Dashboards)│  │ (Logs)      │            │
-│  └─────────────┘  └─────────────┘  └─────────────┘            │
-└─────────────────────────────────────────────────────────────────┘
+                                                                                                                                                                                                        �
+  �                    Kubernetes Cluster                            �
+                                                                                                                                                                                                        �
+  �                                              �                                              �                                              �              �
+  �    �   Presto      �    �  ClickHouse   �    �    Spark      �              �
+  �    �   Cluster     �    �   Cluster     �    �   Operator    �              �
+  �                                              �                                              �                                              �              �
+                                                                                                                                                                                                        �
+  �                                              �                                              �                                              �              �
+  �    �    Kafka      �    �   MinIO/S3    �    � Monitoring    �              �
+  �    �  (Ingestion)  �    � (Storage)     �    �   Stack       �              �
+  �                                              �                                              �                                              �              �
+                                                                                                                                                                                                        �
+  �                                              �                                              �                                              �              �
+  �    �  Prometheus   �    �   Grafana     �    �   ELK/EFK     �              �
+  �    � (Metrics)     �    � (Dashboards)  �    � (Logs)        �              �
+  �                                              �                                              �                                              �              �
+                                                                                                                                                                                                        �
 ```
 
-## 🚀 Quick Start
+##      Quick Start
 
 ### Prerequisites
 
@@ -82,52 +82,52 @@ A production-grade implementation for deploying and benchmarking distributed SQL
    ./run-tpch-benchmark.sh
    ```
 
-## 📁 Project Structure
+##    � Project Structure
 
 ```
-├── terraform/                 # Infrastructure as Code
-│   ├── modules/
-│   │   ├── eks/              # EKS cluster configuration
-│   │   ├── networking/       # VPC, subnets, security groups
-│   │   ├── storage/          # S3/GCS bucket configuration
-│   │   └── monitoring/       # CloudWatch/Stackdriver setup
-│   └── environments/
-│       ├── dev/
-│       └── prod/
-├── helm/                      # Helm charts
-│   ├── presto/               # Presto/Trino cluster
-│   ├── clickhouse/           # ClickHouse cluster
-│   ├── spark-operator/       # Spark operator
-│   ├── kafka/                # Kafka for data ingestion
-│   ├── minio/                # MinIO object storage
-│   └── monitoring/           # Prometheus, Grafana, ELK
-├── benchmarks/               # Performance testing
-│   ├── tpch/                 # TPC-H benchmark scripts
-│   ├── tpcds/                # TPC-DS benchmark scripts
-│   ├── data-generator/       # Synthetic data generation
-│   └── results/              # Benchmark results
-├── fault-tests/              # Chaos engineering
-│   ├── chaos-mesh/           # Chaos Mesh experiments
-│   ├── litmus/               # Litmus chaos experiments
-│   └── recovery-tests/       # Recovery time testing
-├── .github/workflows/        # CI/CD pipelines
-│   ├── terraform.yml         # Infrastructure deployment
-│   ├── helm-deploy.yml       # Application deployment
-│   └── benchmarks.yml        # Automated benchmarking
-└── docs/                     # Documentation
-    ├── architecture.md       # Detailed architecture
-    ├── deployment.md         # Deployment guide
-    └── troubleshooting.md    # Troubleshooting guide
+          terraform/                 # Infrastructure as Code
+  �             modules/
+  �     �             eks/              # EKS cluster configuration
+  �     �             networking/       # VPC, subnets, security groups
+  �     �             storage/          # S3/GCS bucket configuration
+  �     �             monitoring/       # CloudWatch/Stackdriver setup
+  �             environments/
+  �                 dev/
+  �                 prod/
+          helm/                      # Helm charts
+  �             presto/               # Presto/Trino cluster
+  �             clickhouse/           # ClickHouse cluster
+  �             spark-operator/       # Spark operator
+  �             kafka/                # Kafka for data ingestion
+  �             minio/                # MinIO object storage
+  �             monitoring/           # Prometheus, Grafana, ELK
+          benchmarks/               # Performance testing
+  �             tpch/                 # TPC-H benchmark scripts
+  �             tpcds/                # TPC-DS benchmark scripts
+  �             data-generator/       # Synthetic data generation
+  �             results/              # Benchmark results
+          fault-tests/              # Chaos engineering
+  �             chaos-mesh/           # Chaos Mesh experiments
+  �             litmus/               # Litmus chaos experiments
+  �             recovery-tests/       # Recovery time testing
+          .github/workflows/        # CI/CD pipelines
+  �             terraform.yml         # Infrastructure deployment
+  �             helm-deploy.yml       # Application deployment
+  �             benchmarks.yml        # Automated benchmarking
+          docs/                     # Documentation
+              architecture.md       # Detailed architecture
+              deployment.md         # Deployment guide
+              troubleshooting.md    # Troubleshooting guide
 ```
 
-## 📊 Performance Targets
+##      Performance Targets
 
 - **Query Latency**: 40% reduction through optimization
 - **Recovery Time**: 35% improvement in failover procedures
 - **Throughput**: Support 10TB+ analytical workloads
 - **Availability**: 99.9% uptime with fault tolerance
 
-## 🔧 Configuration
+##      Configuration
 
 ### Query Engine Tuning
 
@@ -142,7 +142,7 @@ Each query engine is optimized for:
 - Vertical Pod Autoscaler (VPA) for resource optimization
 - Cluster autoscaling for node pools
 
-## 📈 Monitoring & Observability
+##      Monitoring & Observability
 
 ### Metrics Dashboard
 - Query performance metrics
@@ -156,7 +156,7 @@ Each query engine is optimized for:
 - SLA violation notifications
 - Cluster health status
 
-## 🧪 Testing & Validation
+##      Testing & Validation
 
 ### Benchmark Suites
 - TPC-H queries (1GB to 10TB scale)
@@ -169,7 +169,7 @@ Each query engine is optimized for:
 - Network latency injection
 - Storage failure testing
 
-## 🤝 Contributing
+##   �  Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -177,11 +177,11 @@ Each query engine is optimized for:
 4. Add tests and documentation
 5. Submit a pull request
 
-## 📄 License
+##    � License
 
 MIT License - see LICENSE file for details
 
-## 🆘 Support
+##    � Support
 
 - [Issues](https://github.com/suhasramanand/distributed-query-engine-reliability/issues)
 - [Documentation](./docs/)

@@ -170,7 +170,7 @@ resource "aws_security_group" "cluster" {
 # Cluster Autoscaler IAM Role
 resource "aws_iam_role" "cluster_autoscaler" {
   count = var.enable_autoscaling ? 1 : 0
-  
+
   name = "${var.cluster_name}-cluster-autoscaler"
 
   assume_role_policy = jsonencode({
@@ -194,7 +194,7 @@ resource "aws_iam_role" "cluster_autoscaler" {
 
 resource "aws_iam_role_policy" "cluster_autoscaler" {
   count = var.enable_autoscaling ? 1 : 0
-  
+
   name = "${var.cluster_name}-cluster-autoscaler"
   role = aws_iam_role.cluster_autoscaler[0].id
 

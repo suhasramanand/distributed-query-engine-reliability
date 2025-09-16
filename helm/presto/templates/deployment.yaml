@@ -61,10 +61,10 @@ spec:
               mountPath: /data/presto
             - name: logs
               mountPath: /var/log/trino
-          {{- if .Values.monitoring.jmx.enabled }}
-          - name: jmx
-            mountPath: /opt/trino/jmx
-          {{- end }}
+            {{- if .Values.monitoring.jmx.enabled }}
+            - name: jmx
+              mountPath: /opt/trino/jmx
+            {{- end }}
       volumes:
         - name: config
           configMap:
@@ -160,10 +160,10 @@ spec:
               mountPath: /data/presto
             - name: logs
               mountPath: /var/log/trino
-          {{- if .Values.monitoring.jmx.enabled }}
-          - name: jmx
-            mountPath: /opt/trino/jmx
-          {{- end }}
+            {{- if .Values.monitoring.jmx.enabled }}
+            - name: jmx
+              mountPath: /opt/trino/jmx
+            {{- end }}
       volumes:
         - name: config
           configMap:

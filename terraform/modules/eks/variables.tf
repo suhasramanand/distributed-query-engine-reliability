@@ -33,7 +33,7 @@ variable "node_groups" {
     instance_types   = list(string)
     capacity_type    = string
     labels           = map(string)
-    taints           = list(object({
+    taints = list(object({
       key    = string
       value  = string
       effect = string

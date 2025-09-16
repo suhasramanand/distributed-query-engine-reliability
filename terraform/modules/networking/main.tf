@@ -37,7 +37,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = merge(var.tags, {
-    Name = "${var.environment}-public-${var.availability_zones[count.index]}"
+    Name                     = "${var.environment}-public-${var.availability_zones[count.index]}"
     "kubernetes.io/role/elb" = "1"
   })
 }
@@ -50,7 +50,7 @@ resource "aws_subnet" "private" {
   availability_zone = var.availability_zones[count.index]
 
   tags = merge(var.tags, {
-    Name = "${var.environment}-private-${var.availability_zones[count.index]}"
+    Name                              = "${var.environment}-private-${var.availability_zones[count.index]}"
     "kubernetes.io/role/internal-elb" = "1"
   })
 }
@@ -79,7 +79,7 @@ resource "aws_route_table_association" "public" {
 # NAT Gateway
 resource "aws_eip" "nat" {
   count = length(var.availability_zones)
-  
+
   domain = "vpc"
 
   tags = merge(var.tags, {
@@ -89,7 +89,7 @@ resource "aws_eip" "nat" {
 
 resource "aws_nat_gateway" "main" {
   count = length(var.availability_zones)
-  
+
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
 
@@ -103,7 +103,7 @@ resource "aws_nat_gateway" "main" {
 # Route Table for Private Subnets
 resource "aws_route_table" "private" {
   count = length(var.availability_zones)
-  
+
   vpc_id = aws_vpc.main.id
 
   route {

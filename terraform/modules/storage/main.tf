@@ -107,7 +107,7 @@ resource "aws_s3_bucket_policy" "data" {
 # EFS File System for persistent storage
 resource "aws_efs_file_system" "persistent" {
   creation_token = "${var.cluster_name}-persistent-${var.environment}"
-  encrypted       = true
+  encrypted      = true
 
   tags = merge(var.tags, {
     Name = "${var.cluster_name}-persistent-${var.environment}"
